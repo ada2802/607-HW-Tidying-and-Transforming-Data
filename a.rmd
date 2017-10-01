@@ -1,0 +1,159 @@
+---
+title: "607 HW5 Tidy and Transforment"
+author: "Chunmei Zhu"
+date: "September 30, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## The Data
+
+###chart above describes arrival delays for two airlines across five destinations. Your task is to:
+###(1) Create a .CSV file (or optionally, a MySQL database!) that includes all of the information above. You're encouraged to use a "wide" structure similar to how the information appears above, so that you can practice tidying and transformations as described below.
+
+```{r Import}
+# load require packages
+require(tidyr)
+require(dplyr)
+library(plyr)
+
+# Import data from a.csv file
+source <-tbl_df(read.csv('D:/CUNY_SPS_DA/607_Data_Aq/week5/a.csv', stringsAsFactors = FALSE)) 
+source
+
+# Check data typesraw()
+str(source)
+
+```
+
+### Data Cleaning 
+
+```{r a.csv}
+# only select rows with complete data in all columns and show data
+# renames first two columns 
+a <- rename(na.omit(source),c("ï.." ="airlines", "X"="statues"))
+
+# insert missing values in first columns
+a[2,1] <- "ALASKA"
+a[4,1] <- "AM WEST"
+
+# to shorten the string values to character in second column
+#a$statues <- strtrim(a$statues,1)
+a
+```
+
+###(2) Read the information from your .CSV file into R, and use tidyr and dplyr as needed to tidy and transform your data.
+
+```{r long-formatted-data}
+# long-formatted-data
+a2 <- a %>%  
+  gather(cities, n, Los.Angeles:Seattle, na.rm = TRUE)
+a2
+```
+
+```{r wide-formatted-data}
+# wide-formatted-data
+a3 <- a2 %>%
+ spread(statues,n)
+
+# correct the column name "on time" to "on_time"
+colnames(a3)[4] <- "on_time"
+
+a3
+```
+
+```{r AM_WEST-data}
+# load requried packages for string value
+library(tidyverse)
+library(stringr)
+
+# filter data for airline "AM WEST"
+am <- a2 %>%
+ filter(str_detect(airlines, 'AM WEST'))%>%
+ spread(statues,n)
+am
+```
+
+```{r transfor-row-column-AM_WEST}
+# correct the column name "on time" to "on_time"
+colnames(am)[4] <- "on_time"
+
+# unite columns airlines and cities
+am2<- am %>% 
+  unite(AM.city, airlines, cities,sep="." ) %>%
+  select(AM.city,delayed,on_time) 
+
+# tranfrom rows to columns
+am2<- as.data.frame(t(am2))
+
+# first row as the header in the table a4
+colnames(am2) <- unlist(am2[1,])
+am2=am2[-1,]
+am2
+```
+
+```{r  summary-statistics-delayed-AM_WEST}
+sub.a3 <- a3%>%  select(airlines,delayed)
+
+sub.a3 %>% summarise(Min = min(delayed, na.rm=TRUE),
+                     Median = median(delayed, na.rm=TRUE),
+                     Mean = mean(delayed, na.rm=TRUE),
+                     Var = var(delayed, na.rm=TRUE),
+                     SD = sd(delayed, na.rm=TRUE),
+                     Max = max(delayed, na.rm=TRUE))
+```
+
+###(3) Perform analysis to compare the arrival delays for the two airlines.
+###Answer: AM_WEST airline has more delayed flights than ALASKA airline in every city. Both airlines have the most delayed flights in San.Francisco. 
+
+```{r airlines-delays-analysis}
+a3  
+df <- a3 %>% 
+  mutate(total = on_time + delayed)%>%
+  mutate(delayed = delayed/total)%>%
+  select(airlines,cities,delayed)%>%
+  arrange(cities,airlines)
+df
+
+al_delay <- df%>% 
+  filter(str_detect(airlines, 'ALASKA'))%>%
+  select(cities,delayed)%>%
+  arrange(cities)
+#al_delay
+colnames(al_delay)[2] <-"ALASKA.delayed"
+
+am_delay <- df%>% 
+  filter(str_detect(airlines, 'AM WEST'))%>%
+  select(cities,delayed)%>%
+  arrange(cities)
+#am_delay
+colnames(am_delay)[2] <-"AM_WEST.delayed"
+
+delayed<- al_delay %>% 
+  join(am_delay, by="cities") #%>% 
+#  mutate(diff = AM_WEST.delayed - ALASKA.delayed )
+delayed
+
+
+library ('ggplot2')
+barplot(delayed$ALASKA.delayed, names.arg=delayed$cities, ylim=c(0,0.30), main="ALASKA Airline Delayed (%)", ylab="blah", xlab="cities", col="darkmagenta")
+
+barplot(delayed$AM_WEST.delayed, names.arg=delayed$cities, ylim=c(0,0.30), main="AM WEST Airline Delayed (%)", ylab="blah", xlab="cities", col="orange")
+
+ matplot(delayed, type = c("b"),pch=1,col = 2:3) #plot
+ legend("topleft", legend =1:2, col=1:2, pch=1) # optional legend
+ 
+ 
+
+write.table(delayed, "D:/CUNY_SPS_DA/607_Data_Aq/week5/delayed.csv", sep="\t")
+ 
+```
+
+### (4) Your code should be in an R Markdown file, posted to rpubs.com, and should include narrative descriptions of your data cleanup work, analysis, and conclusions. Please include in your homework submission:
+###??? The URL to the .Rmd file in your GitHub repository. and
+###??? The URL for your rpubs.com web page.
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
